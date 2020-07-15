@@ -1,7 +1,7 @@
 from flask import Flask, request
 from flask_restx import Resource, Api, fields
 from flask_sqlalchemy import SQLAlchemy
-from models import setup_db, User
+from models import setup_db, User, Todo
 from flask_bcrypt import Bcrypt
 from flask_jwt_extended import (
     JWTManager,
@@ -158,6 +158,31 @@ class ConfirmToken(Resource):
             return {"message": "Link expired"}, 404
 
 
+@api.route("/todos/<int:id>")
+class AllTodos(Resource):
+    def get(self, id):
+        todos = Todos.query.filter_by(user_id=id).all()
+        todos = [todo.format() for todo in todos]
+        return {"message": todos}, 200
+
+    def post(self, id):
+        category = request.get_json()["category"]
+        done = request.get_json()["done"]
+
+        try:
+            exist_check = User.query.filter_by(id=id).one_or_none()
+            if exist_check:
+                new_todo = Todo(category=category, done=done, user_id=id)
+                new_todo.insert()
+                return {"message": "Todo was created"}, 200
+            else:
+                return {"message": "User not found"}, 404
+        except:
+            return {"message": "Could not create new todo"}, 404
+        finally:
+            db.session.close()
+
+
 @api.route("/delete/<int:id>")
 class DeleteUser(Resource):
     def get(self, id):
@@ -166,4 +191,3 @@ class DeleteUser(Resource):
 
 if __name__ == "__main__":
     app.run(port=5000, debug=True)
-

@@ -19,9 +19,9 @@ class User(db.Model):
     __tablename__ = "users"
 
     id = Column(Integer, primary_key=True)
-    email = db.Column(String(256))
-    password = db.Column(String(256))
-    active = db.Column(Boolean, default=False)
+    email = Column(String(256))
+    password = Column(String(256))
+    active = Column(Boolean, default=False)
     created_date = Column(DateTime, default=datetime.datetime.utcnow)
 
     def __init__(self, email, password):
@@ -47,3 +47,38 @@ class User(db.Model):
             "active": self.active,
             "created_date": self.created_date.strftime("%Y-%m-%d %H:%M:%S"),
         }
+
+
+class Todo(db.Model):
+    __tablename__ = "todos"
+
+    id = Column(Integer, primary_key=True)
+    category = Column(String(256))
+    done = Column(Boolean, default=False)
+    user_id = Column(Integer, db.ForeignKey("users.id"))
+    user = db.relationship("User", backref=db.backref("users"))
+
+    def __init__(self, category, done, user_id):
+        self.category = category
+        self.done = done
+        self.user_id = user_id
+
+    def insert(self):
+        db.session.add(self)
+        db.session.commit()
+
+    def update(self):
+        db.session.commit()
+
+    def delete(self):
+        db.session.delete(self)
+        db.session.commit()
+
+    def format(self):
+        return {
+            "id": self.id,
+            "category": self.category,
+            "done": self.done,
+            "user_id": self.user_id,
+        }
+
