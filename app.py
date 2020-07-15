@@ -78,20 +78,17 @@ class UserLogin(Resource):
         password = request.get_json()["password"]
 
         user = User.query.filter_by(email=email).one_or_none()
-        user = user.format()
 
         if user is None:
             return {"message": "user does not exist"}, 404
 
+        user = user.format()
         if bcrypt.check_password_hash(pw_hash=user["password"], password=password):
+
             if user["active"]:
                 access_token = create_access_token(identity=user)
                 return (
-                    {
-                        "user": user,
-                        "access_token": access_token,
-                        "message": "Login successful",
-                    },
+                    {"access_token": access_token, "message": "Login successful",},
                     200,
                 )
 
