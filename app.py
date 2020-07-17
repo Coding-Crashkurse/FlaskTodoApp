@@ -1,4 +1,4 @@
-from flask import Flask, request
+from flask import Flask, request, url_for
 from flask_restx import Resource, Api, fields
 from flask_sqlalchemy import SQLAlchemy
 from models import setup_db, User, Todo
@@ -7,7 +7,10 @@ from flask_jwt_extended import (
     JWTManager,
     jwt_required,
     create_access_token,
+    create_refresh_token,
     get_jwt_identity,
+    get_jwt_claims,
+    jwt_refresh_token_required,
 )
 from flask_cors import CORS, cross_origin
 import re
@@ -16,8 +19,13 @@ import smtplib
 import imghdr
 from email.message import EmailMessage
 from itsdangerous import URLSafeTimedSerializer, BadTimeSignature, SignatureExpired
+from authlib.integrations.flask_client import OAuth
+import json
+
+oauth = OAuth()
 
 app = Flask(__name__)
+oauth.init_app(app)
 app.secret_key = "markus"
 setup_db(app, database_path="postgresql://markus:test@134.122.78.140:5432/register")
 jwt = JWTManager(app)
@@ -25,6 +33,18 @@ db = SQLAlchemy(app)
 CORS(app, resources={r"/*": {"origins": "*"}})
 api = Api(app, version="1.0", title="TodoMVC API", description="A simple TodoMVC API",)
 bcrypt = Bcrypt()
+
+oauth.register(
+    name="github",
+    client_id="f6bb4947b9ea704db22c",
+    client_secret="13cf0ab911a187d56e23e3fb1d86660432d6e589",
+    access_token_url="https://github.com/login/oauth/access_token",
+    access_token_params=None,
+    authorize_url="https://github.com/login/oauth/authorize",
+    authorize_params=None,
+    api_base_url="http://api.github.com/",
+    client_kwargs={"scope": "user:email"},
+)
 
 s = URLSafeTimedSerializer(app.secret_key)
 
@@ -36,6 +56,11 @@ def is_valid_email(email):
         return bool(
             re.match("^.+@(\[?)[a-zA-Z0-9-.]+.([a-zA-Z]{2,3}|[0-9]{1,3})(]?)$", email)
         )
+
+
+@jwt.user_claims_loader
+def add_claims_to_access_token(identity):
+    return identity
 
 
 @api.route("/register")
@@ -86,9 +111,10 @@ class UserLogin(Resource):
         if bcrypt.check_password_hash(pw_hash=user["password"], password=password):
 
             if user["active"]:
-                access_token = create_access_token(identity=user)
+                access_token = create_access_token(identity=user["id"])
+                refresh_token = create_refresh_token(identity=user["id"])
                 return (
-                    {"access_token": access_token, "message": "Login successful",},
+                    {"access_token": access_token, "refresh_token": refresh_token},
                     200,
                 )
 
@@ -97,6 +123,65 @@ class UserLogin(Resource):
 
         else:
             return {"message": "Wrong credentials"}, 401
+
+
+@api.route("/login/github")
+class GithubLogin(Resource):
+    @classmethod
+    def get(cls):
+        redirect_uri = url_for("github.authorize", _external=True)
+        return oauth.github.authorize_redirect(redirect_uri)
+
+
+# Get authorization
+# Create user
+# Save github token to user
+# Create access token
+# Return JWT
+# Tokengetter will then use the current user to load token from database
+
+
+@api.route("/login/github/authorized", endpoint="github.authorize")
+class GithubAuthorize(Resource):
+    @classmethod
+    def get(cls):
+        token = oauth.github.authorize_access_token()
+
+        resp = oauth.github.get("user")
+        profile = json.loads(resp.text)
+        email = profile["email"]
+
+        user = User.query.filter_by(email=email).first()
+        user = user.format()
+
+        if not user:
+            user = User(email=email, password=None)
+            user.insert()
+
+        access_token = create_access_token(identity=user["id"])
+        refresh_token = create_refresh_token(identity=user["id"])
+
+        return {"access_token": access_token, "refresh_token": refresh_token}, 200
+
+
+@api.route("/refresh")
+class TokenRefresh(Resource):
+    @jwt_refresh_token_required
+    def post(self):
+        current_user = get_jwt_identity()
+        new_token = create_access_token(identity=current_user, fresh=False)
+        return {"access_token": new_token}, 200
+
+
+@api.route("/protected")
+class Protected(Resource):
+    @jwt_required
+    def get(self):
+        claims = get_jwt_claims()
+        username = get_jwt_identity()
+        if claims == "langmarkus@hotmail.com":
+            return {"admin": True, "hello": "from {}".format(username)}, 200
+        return {"admin": False, "hello": "from {}".format(username)}, 200
 
 
 @api.route("/confirm")

@@ -19,6 +19,7 @@ psycopg2 = "*"
 flask-restx = "*"
 flask-mail = "*"
 python-dotenv = "*"
+authlib = "*"
 
 [requires]
 python_version = "3.7"
