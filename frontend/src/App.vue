@@ -1,44 +1,26 @@
 <template>
-  <v-app>
-    <v-app-bar app color="primary" dark>
-      <div class="d-flex align-center">
-        <v-img
-          alt="Vuetify Logo"
-          class="shrink mr-2"
-          contain
-          src="https://cdn.vuetifyjs.com/images/logos/vuetify-logo-dark.png"
-          transition="scale-transition"
-          width="40"
-        />
-
-        <h2>Frontend for Todo API</h2>
-      </div>
-
-      <v-spacer></v-spacer>
-
-      <!-- <v-btn href="https://github.com/vuetifyjs/vuetify/releases/latest" target="_blank" text>
-        <v-icon>mdi-open-in-new</v-icon>
-      </v-btn>-->
-    </v-app-bar>
-
-    <v-main>
-      <HelloWorld />
-    </v-main>
-  </v-app>
+  <div id="app">
+    <app-header />
+    <router-view></router-view>
+  </div>
 </template>
 
 <script>
-import HelloWorld from "./components/HelloWorld";
-
-export default {
-  name: "App",
-
-  components: {
-    HelloWorld
-  },
-
-  data: () => ({
-    //
-  })
-};
+  import Header from './components/header/header.vue'
+  export default {
+    name: 'app',
+    components: {
+      'app-header': Header
+    },
+    created () {
+      this.$store.dispatch('tryAutoLogin')
+    }
+  }
 </script>
+
+<style>
+  body, html {
+    margin: 0;
+    font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+  }
+</style>
